@@ -1,0 +1,19 @@
+name: Auto-label new issues
+
+on:
+  issues:
+    types: [opened]  # This triggers the action when a new issue is opened
+
+jobs:
+  label:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v2
+
+      - name: Add labels to new issue
+        uses: actions-ecosystem/action-add-labels@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # Token to authenticate API calls
+          labels: 'bug,enhancement'  # List of labels you want to add
