@@ -16,6 +16,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}  # Authenticate GitHub CLI
     steps:
+        - uses: actions/checkout@v4
       - name: Check if PR has the 'no-auto-merge' label
         id: check-label
         run: |
