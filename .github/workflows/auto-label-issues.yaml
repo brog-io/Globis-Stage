@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Format labels
-        run: echo "LABELS=$(echo '${{ vars.ISSUE_LABELS }}' | tr -d '\r' | tr ',' '\n' | sed 's/^ *//g' | sed 's/ *$//g' | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> $GITHUB_ENV
+        run: echo "LABELS=$(echo '${{ secrets.ISSUE_LABELS }}' | tr -d '\r' | tr ',' '\n' | sed 's/^ *//g' | sed 's/ *$//g' | jq -R -s -c 'split("\n") | map(select(length > 0))')" >> $GITHUB_ENV
 
       - name: Add labels to new issue
         uses: actions-ecosystem/action-add-labels@v1
