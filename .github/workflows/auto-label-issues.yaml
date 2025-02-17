@@ -12,22 +12,27 @@ jobs:
       issues: write
 
     steps:
+      # Step 1: Checkout the repository (using the correct token for private repos)
       - name: Checkout repository
-        uses: actions/checkout@v3  # Ensure repository is checked out
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure GITHUB_TOKEN has repo read/write permissions
 
-      - name: Check if labels.json exists
-        run: ls -al .github/labels.json  # Debug if the file is present
-
-      - name: Read labels from file
+      # Step 2: Ensure labels.json file exists and read it
+      - name: Get labels from labels.json
         run: |
+          if [ ! -f .github/labels.json ]; then
+            echo ".github/labels.json file not found."
+            exit 1
+          fi
           LABELS=$(cat .github/labels.json | jq -r '.labels | join(",")')
-          echo "LABELS=$LABELS" >> $GITHUB_ENV  # Set LABELS to the list from the file
+          echo "Formatted LABELS=$LABELS"  # To see the result in logs
+          echo "LABELS=$LABELS" >> $GITHUB_ENV
 
-      - name: Debug - Print formatted LABELS
-        run: echo "Formatted LABELS=${{ env.LABELS }}"  # Print the formatted labels
-
+      # Step 3: Add labels to the new issue
       - name: Add labels to new issue
         uses: actions-ecosystem/action-add-labels@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # Use the same token for adding labels
           labels: ${{ env.LABELS }}
+
