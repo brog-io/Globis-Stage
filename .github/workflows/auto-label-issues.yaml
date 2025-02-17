@@ -2,18 +2,21 @@ name: Auto-label new issues
 
 on:
   issues:
-    types: [opened]  # This triggers the action when a new issue is opened
+    types: [opened]
 
 jobs:
   label:
     runs-on: ubuntu-latest
 
     permissions:
-      issues: write  # Required to modify issue labels
+      issues: write
 
     steps:
+      - name: Prepare labels
+        run: echo "LABELS=$(echo '${{ vars.ISSUE_LABELS }}' | tr ',' '\n' | sed 's/^ *//g' | sed 's/ *$//g')" >> $GITHUB_ENV
+
       - name: Add labels to new issue
         uses: actions-ecosystem/action-add-labels@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # Token to authenticate API calls
-          labels: ${{ vars.ISSUE_LABELS }}  # Configurable labels from repository variables
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: ${{ env.LABELS }}
