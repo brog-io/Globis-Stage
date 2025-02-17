@@ -12,6 +12,9 @@ jobs:
       issues: write
 
     steps:
+      - name: Check if labels.json exists
+        run: ls -al .github/labels.json  # Debug if the file is present
+
       - name: Read labels from file
         run: |
           LABELS=$(cat .github/labels.json | jq -r '.labels | join(",")')
