@@ -8,7 +8,7 @@ jobs:
   label:
     runs-on: ubuntu-latest
 
-    permissions:  # Add this section
+    permissions:
       issues: write  # Required to modify issue labels
 
     steps:
@@ -16,4 +16,4 @@ jobs:
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}  # Token to authenticate API calls
-          labels: 'bug'  # List of labels you want to add
+          labels: ${{ secrets.ISSUE_LABELS }}  # Configurable labels from secrets
