@@ -6,34 +6,32 @@ on:
 
 jobs:
   label:
+    name: Add labels to new issue
     runs-on: ubuntu-latest
-
+    
     permissions:
       issues: write
       contents: read
-
+    
     steps:
-      # Step 1: Checkout the repository (using the correct token for private repos)
       - name: Checkout repository
         uses: actions/checkout@v3
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}  # Ensure GITHUB_TOKEN has repo read/write permissions
-
-      # Step 2: Ensure labels.json file exists and read it
+          token: ${{ secrets.GITHUB_TOKEN }}
+      
       - name: Get labels from labels.json
+        id: get-labels
         run: |
           if [ ! -f .github/labels.json ]; then
-            echo ".github/labels.json file not found."
+            echo "Error: .github/labels.json file not found"
             exit 1
           fi
+          
           LABELS=$(cat .github/labels.json | jq -r '.labels | join(",")')
-          echo "Formatted LABELS=$LABELS"  # To see the result in logs
-          echo "LABELS=$LABELS" >> $GITHUB_ENV
-
-      # Step 3: Add labels to the new issue
+          echo "labels=$LABELS" >> $GITHUB_OUTPUT
+      
       - name: Add labels to new issue
         uses: actions-ecosystem/action-add-labels@v1
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # Use the same token for adding labels
-          labels: ${{ env.LABELS }}
-
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          labels: ${{ steps.get-labels.outputs.labels }}
