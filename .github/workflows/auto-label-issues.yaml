@@ -19,19 +19,18 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
       
-      - name: Get labels from labels.json
-        id: get-labels
+      - name: Add labels to new issue
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
         run: |
           if [ ! -f .github/labels.json ]; then
             echo "Error: .github/labels.json file not found"
             exit 1
           fi
           
-          LABELS=$(cat .github/labels.json | jq -r '.labels | join(",")')
-          echo "labels=$LABELS" >> $GITHUB_OUTPUT
-      
-      - name: Add labels to new issue
-        uses: actions-ecosystem/action-add-labels@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          labels: ${{ steps.get-labels.outputs.labels }}
+          # Read labels from JSON and add them one by one
+          for label in $(cat .github/labels.json | jq -r '.labels[]'); do
+            echo "Adding label: $label"
+            gh issue edit $ISSUE_NUMBER --add-label "$label"
+          done
