@@ -1,84 +1,94 @@
-name: Pull Request Management
+name: Auto Merge
 on:
   pull_request:
-    types: [opened, synchronize, reopened]
-  pull_request_target:
-    types: [opened, synchronize, reopened]
+    types: 
+      - opened
+      - synchronize
+      - labeled
+      - unlabeled
+      - review_requested
+      - review_request_removed
 
 jobs:
-  process-pr:
+  auto-merge:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write
-      contents: read
+    # Prevent workflow from running on forks
+    if: github.event.pull_request.head.repo.full_name == github.repository
     
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - name: Checkout code
+        uses: actions/checkout@v3
+        
+      - name: Setup GitHub CLI
+        uses: cli/cli@v2
         with:
-          fetch-depth: 0
-      
-      - name: Parse CODEOWNERS
-        id: codeowners
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Get PR details
+        id: pr_details
         run: |
-          echo "::set-output name=teams::$(grep -oP '(?<=@)[^\s]+' .github/CODEOWNERS | sort -u | jq -R -s -c 'split("\n")[:-1]')"
-      
-      - name: Get PR Files
-        id: pr-files
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const { data: files } = await github.rest.pulls.listFiles({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              pull_number: context.issue.number
-            });
-            return files.map(file => file.filename);
-      
-      - name: Assign Labels from CODEOWNERS
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const files = ${{ steps.pr-files.outputs.result }};
-            const teams = ${{ steps.codeowners.outputs.teams }};
-            
-            // Read CODEOWNERS file
-            const fs = require('fs');
-            const codeowners = fs.readFileSync('.github/CODEOWNERS', 'utf8');
-            const lines = codeowners.split('\n').filter(line => line && !line.startsWith('#'));
-            
-            const labels = new Set();
-            
-            // Match files against CODEOWNERS patterns
-            for (const file of files) {
-              for (const line of lines) {
-                const [pattern, ...owners] = line.trim().split(/\s+/);
-                if (minimatch(file, pattern)) {
-                  // Extract team names without @ symbol and add as labels
-                  owners.forEach(owner => {
-                    if (owner.startsWith('@')) {
-                      labels.add(owner.substring(1));
-                    }
-                  });
-                }
-              }
-            }
-            
-            // Set labels on PR
-            await github.rest.issues.setLabels({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              labels: Array.from(labels)
-            });
-            
-            // Add PR comment with label information
-            const labelList = Array.from(labels).join(', ');
-            const comment = `Automatically assigned labels based on modified files: ${labelList}`;
-            
-            await github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-              body: comment
-            });
+          # Use jq for more reliable JSON parsing
+          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} --json labels,reviews,checks,baseRefName)
+          
+          # Extract required information
+          PR_LABELS=$(echo "$PR_DATA" | jq -r '.labels[].name')
+          PR_APPROVALS=$(echo "$PR_DATA" | jq -r '.reviews[].state' | grep -c "APPROVED" || echo "0")
+          PR_CHECKS_STATUS=$(echo "$PR_DATA" | jq -r '.checks.nodes[].conclusion')
+          BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.baseRefName')
+          
+          # Set outputs
+          echo "labels<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_LABELS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "approvals=$PR_APPROVALS" >> $GITHUB_OUTPUT
+          echo "checks_status<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_CHECKS_STATUS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
+          
+          # Also set environment variables for conditions
+          echo "PR_LABELS=$PR_LABELS" >> $GITHUB_ENV
+          echo "PR_APPROVALS=$PR_APPROVALS" >> $GITHUB_ENV
+          
+      - name: Check merge conditions
+        id: merge_check
+        run: |
+          # Check if all required conditions are met
+          if [[ "${{ env.PR_APPROVALS }}" -gt 0 ]] && \
+             [[ ! "${{ env.PR_LABELS }}" =~ "no-auto-merge" ]] && \
+             [[ ! "${{ steps.pr_details.outputs.checks_status }}" =~ "FAILURE" ]] && \
+             [[ ! "${{ steps.pr_details.outputs.checks_status }}" =~ "CANCELLED" ]]; then
+            echo "can_merge=true" >> $GITHUB_OUTPUT
+          else
+            echo "can_merge=false" >> $GITHUB_OUTPUT
+          fi
+          
+      - name: Auto-merge PR
+        if: steps.merge_check.outputs.can_merge == 'true'
+        run: |
+          echo "Attempting to auto-merge PR #${{ github.event.pull_request.number }}"
+          
+          # Attempt to merge with retries
+          for i in {1..3}; do
+            if gh pr merge ${{ github.event.pull_request.number }} --auto --merge; then
+              echo "Successfully initiated auto-merge"
+              exit 0
+            else
+              echo "Merge attempt $i failed, retrying in 10 seconds..."
+              sleep 10
+            fi
+          done
+          
+          echo "Failed to merge after 3 attempts"
+          exit 1
+          
+      - name: Create comment if merge conditions not met
+        if: steps.merge_check.outputs.can_merge == 'false'
+        run: |
+          COMMENT="⚠️ Auto-merge conditions not met. Required conditions:\n"
+          COMMENT+="✓ At least one approval (current: ${{ env.PR_APPROVALS }})\n"
+          COMMENT+="✓ No 'no-auto-merge' label\n"
+          COMMENT+="✓ All checks must pass\n\n"
+          COMMENT+="Please address these requirements and try again."
+          
+          gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT"
