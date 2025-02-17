@@ -16,4 +16,4 @@ jobs:
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}  # Token to authenticate API calls
-          labels: ${{ secrets.ISSUE_LABELS }}  # Configurable labels from secrets
+          labels: ${{ vars.ISSUE_LABELS }}  # Configurable labels from repository variables
