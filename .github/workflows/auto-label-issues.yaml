@@ -16,4 +16,4 @@ jobs:
         uses: actions-ecosystem/action-add-labels@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}  # Token to authenticate API calls
-          labels: 'bug,enhancement'  # List of labels you want to add
+          labels: 'bug'  # List of labels you want to add
