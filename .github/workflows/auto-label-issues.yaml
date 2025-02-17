@@ -13,7 +13,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v3  # Ensure the repository is checked out
+        uses: actions/checkout@v3  # Ensure repository is checked out
 
       - name: Check if labels.json exists
         run: ls -al .github/labels.json  # Debug if the file is present
