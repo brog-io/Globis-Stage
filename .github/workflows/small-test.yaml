@@ -31,12 +31,12 @@ jobs:
         id: pr_details
         run: |
           # Use jq for more reliable JSON parsing
-          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} --json labels,reviews,checks,baseRefName)
+          PR_DATA=$(gh pr view ${{ github.event.pull_request.number }} --json labels,reviews,statusCheckRollup,baseRefName)
           
           # Extract required information
           PR_LABELS=$(echo "$PR_DATA" | jq -r '.labels[].name')
           PR_APPROVALS=$(echo "$PR_DATA" | jq -r '.reviews[].state' | grep -c "APPROVED" || echo "0")
-          PR_CHECKS_STATUS=$(echo "$PR_DATA" | jq -r '.checks.nodes[].conclusion')
+          PR_STATUS=$(echo "$PR_DATA" | jq -r '.statusCheckRollup[].conclusion')
           BASE_BRANCH=$(echo "$PR_DATA" | jq -r '.baseRefName')
           
           # Set outputs
@@ -44,8 +44,8 @@ jobs:
           echo "$PR_LABELS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           echo "approvals=$PR_APPROVALS" >> $GITHUB_OUTPUT
-          echo "checks_status<<EOF" >> $GITHUB_OUTPUT
-          echo "$PR_CHECKS_STATUS" >> $GITHUB_OUTPUT
+          echo "status<<EOF" >> $GITHUB_OUTPUT
+          echo "$PR_STATUS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
           echo "base_branch=$BASE_BRANCH" >> $GITHUB_OUTPUT
           
@@ -59,8 +59,8 @@ jobs:
           # Check if all required conditions are met
           if [[ "${{ env.PR_APPROVALS }}" -gt 0 ]] && \
              [[ ! "${{ env.PR_LABELS }}" =~ "no-auto-merge" ]] && \
-             [[ ! "${{ steps.pr_details.outputs.checks_status }}" =~ "FAILURE" ]] && \
-             [[ ! "${{ steps.pr_details.outputs.checks_status }}" =~ "CANCELLED" ]]; then
+             [[ ! "${{ steps.pr_details.outputs.status }}" =~ "FAILURE" ]] && \
+             [[ ! "${{ steps.pr_details.outputs.status }}" =~ "CANCELLED" ]]; then
             echo "can_merge=true" >> $GITHUB_OUTPUT
           else
             echo "can_merge=false" >> $GITHUB_OUTPUT
@@ -91,7 +91,7 @@ jobs:
           COMMENT="⚠️ Auto-merge conditions not met. Required conditions:\n"
           COMMENT+="✓ At least one approval (current: ${{ env.PR_APPROVALS }})\n"
           COMMENT+="✓ No 'no-auto-merge' label\n"
-          COMMENT+="✓ All checks must pass\n\n"
+          COMMENT+="✓ All status checks must pass\n\n"
           COMMENT+="Please address these requirements and try again."
           
           gh pr comment ${{ github.event.pull_request.number }} --body "$COMMENT"
