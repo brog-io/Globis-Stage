@@ -10,6 +10,7 @@ jobs:
 
     permissions:
       issues: write
+      contents: read
 
     steps:
       # Step 1: Checkout the repository (using the correct token for private repos)
