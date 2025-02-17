@@ -10,6 +10,11 @@ jobs:
   auto-merge:
     if: github.event.pull_request.draft == false
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}  # Authenticate GitHub CLI
     steps:
       - name: Check if PR has the 'no-auto-merge' label
         id: check-label
