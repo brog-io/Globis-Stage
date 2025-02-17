@@ -8,10 +8,10 @@ jobs:
   label:
     runs-on: ubuntu-latest
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v2
+    permissions:  # Add this section
+      issues: write  # Required to modify issue labels
 
+    steps:
       - name: Add labels to new issue
         uses: actions-ecosystem/action-add-labels@v1
         with:
