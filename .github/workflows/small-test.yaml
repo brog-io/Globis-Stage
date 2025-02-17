@@ -18,7 +18,6 @@ jobs:
       contents: write          # Allow pushing to the repository
       pull-requests: write     # Allow modifying pull requests
       checks: read             # Allow reading the status checks for the pull request
-      status: read             # Allow reading status information for the PR
       actions: read            # Allow reading action run information
 
     steps:
