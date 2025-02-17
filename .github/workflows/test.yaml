@@ -1,0 +1,84 @@
+name: Pull Request Management
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  process-pr:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: read
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      
+      - name: Parse CODEOWNERS
+        id: codeowners
+        run: |
+          echo "::set-output name=teams::$(grep -oP '(?<=@)[^\s]+' .github/CODEOWNERS | sort -u | jq -R -s -c 'split("\n")[:-1]')"
+      
+      - name: Get PR Files
+        id: pr-files
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: files } = await github.rest.pulls.listFiles({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number
+            });
+            return files.map(file => file.filename);
+      
+      - name: Assign Labels from CODEOWNERS
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const files = ${{ steps.pr-files.outputs.result }};
+            const teams = ${{ steps.codeowners.outputs.teams }};
+            
+            // Read CODEOWNERS file
+            const fs = require('fs');
+            const codeowners = fs.readFilaeSync('.github/CODEOWNERS', 'utf8');
+            const lines = codeowners.split('\n').filter(line => line && !line.startsWith('#'));
+            
+            const labels = new Set();
+            
+            // Match files against CODEOWNERS patterns
+            for (const file of files) {
+              for (const line of lines) {
+                const [pattern, ...owners] = line.trim().split(/\s+/);
+                if (minimatch(file, pattern)) {
+                  // Extract team names without @ symbol and add as labels
+                  owners.forEach(owner => {
+                    if (owner.startsWith('@')) {
+                      labels.add(owner.substring(1));
+                    }
+                  });
+                }
+              }
+            }
+            
+            // Set labels on PR
+            await github.rest.issues.setLabels({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              labels: Array.from(labels)
+            });
+            
+            // Add PR comment with label information
+            const labelList = Array.from(labels).join(', ');
+            const comment = `Automatically assigned labels based on modified files: ${labelList}`;
+            
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              body: comment
+            });
