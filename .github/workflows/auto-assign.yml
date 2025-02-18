@@ -1,4 +1,5 @@
 name: "PR Review and Notification System"
+
 on: 
   pull_request:
     types: [opened, synchronize, labeled, unlabeled]
@@ -9,7 +10,7 @@ jobs:
   add-label:
     runs-on: ubuntu-latest
     steps:
-      - name: labeler
+      - name: Apply Labels Based on Changes
         uses: actions/labeler@v4
         with:
           repo-token: "${{ secrets.GITHUB_TOKEN }}"
@@ -23,8 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v3
       
-      # Check if all tests have completed
-      - name: Check test status
+      - name: Check Test Status
         id: check-tests
         uses: actions/github-script@v6
         with:
@@ -34,12 +34,10 @@ jobs:
               repo: context.repo.repo,
               ref: context.payload.pull_request.head.sha
             });
-            
-            const allCompleted = checks.check_runs.every(check => 
-              check.status === 'completed'
-            );
-            
-            core.setOutput('completed', allCompleted);
+
+            const allCompleted = checks.check_runs.every(check => check.status === 'completed');
+
+            core.setOutput('completed', allCompleted.toString());
 
   notify-reviewers:
     needs: process-pr
@@ -47,14 +45,13 @@ jobs:
     if: needs.process-pr.outputs.tests-completed == 'true'
     steps:
       - uses: actions/checkout@v3
-      
+
       - uses: dorny/paths-filter@v2
         id: changes
         with:
           filters: .github/filters.yml
-      
-      # Get CODEOWNERS-based reviewers with improved parsing
-      - name: Parse CODEOWNERS
+
+      - name: Parse CODEOWNERS and Find Reviewers
         id: codeowners
         uses: actions/github-script@v6
         with:
@@ -62,7 +59,14 @@ jobs:
             const fs = require('fs');
             const path = require('path');
 
-            const codeowners = fs.readFileSync('CODEOWNERS', 'utf8').split('\n');
+            const codeownersPath = '.github/CODEOWNERS';
+            if (!fs.existsSync(codeownersPath)) {
+              core.setOutput('reviewers', '');
+              core.warning('CODEOWNERS file not found.');
+              return;
+            }
+
+            const codeowners = fs.readFileSync(codeownersPath, 'utf8').split('\n');
             const changedFiles = await github.rest.pulls.listFiles({
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -72,17 +76,15 @@ jobs:
             function matchOwners(filePath) {
               let matchedOwners = new Set();
               codeowners.forEach(line => {
-                if (line.trim().startsWith("#") || line.trim() === "") return; // Ignore comments and empty lines
+                if (line.trim().startsWith("#") || line.trim() === "") return;
                 
                 const [pattern, ...owners] = line.split(/\s+/);
-                if (!owners.length) return; // Ignore lines without owners
-                
-                const regexPattern = pattern
-                  .replace(/\*/g, ".*")
-                  .replace(/\//g, "\\/")
-                  .replace(/\./g, "\\.");
+                if (!owners.length) return;
+
+                const regexPattern = pattern.replace(/\*/g, ".*").replace(/\//g, "\\/");
+
                 if (new RegExp(`^${regexPattern}`).test(filePath)) {
-                  owners.forEach(owner => matchedOwners.add(owner.replace('@', '')));
+                  owners.forEach(owner => matchedOwners.add(owner.replace('@', '').trim()));
                 }
               });
               return matchedOwners;
@@ -93,15 +95,30 @@ jobs:
               matchOwners(file.filename).forEach(owner => reviewers.add(owner));
             });
 
-            // Ensure we have at least one reviewer
             if (reviewers.size === 0) {
-              core.warning('No reviewers found in CODEOWNERS for changed files');
+              core.warning('No reviewers found in CODEOWNERS for changed files.');
             }
 
             core.setOutput('reviewers', Array.from(reviewers).join(','));
 
-      # Send bundled Slack notification with label context
-      - name: Notify reviewers
+      - name: Assign Reviewers to PR
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const reviewers = "${{ steps.codeowners.outputs.reviewers }}".split(',').filter(r => r);
+            if (reviewers.length > 0) {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                reviewers: reviewers
+              });
+              console.log(`Assigned reviewers: ${reviewers.join(', ')}`);
+            } else {
+              core.warning("No reviewers found to assign.");
+            }
+
+      - name: Notify Reviewers on Slack
         uses: Ilshidur/action-slack@2.0.2
         env:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
@@ -126,48 +143,18 @@ jobs:
                 }
               ]
             }
-        - name: Assign Reviewers
-          uses: actions/github-script@v6
-          with:
-            script: |
-              const reviewers = "${{ steps.codeowners.outputs.reviewers }}".split(',').filter(r => r);
-              if (reviewers.length > 0) {
-                await github.rest.pulls.requestReviewers({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  pull_number: context.payload.pull_request.number,
-                  reviewers: reviewers
-                });
-              } else {
-                core.warning("No reviewers found to assign.");
-              }
-      - name: Assign Reviewers
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const reviewers = "${{ steps.codeowners.outputs.reviewers }}".split(',').filter(r => r);
-            if (reviewers.length > 0) {
-              await github.rest.pulls.requestReviewers({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                reviewers: reviewers
-              });
-            } else {
-              core.warning("No reviewers found to assign.");
-            }
-    
+
   update-pr-status:
     needs: [process-pr, notify-reviewers]
     runs-on: ubuntu-latest
     steps:
-      - name: Update PR status
+      - name: Comment on PR with Status Update
         uses: actions/github-script@v6
         with:
           script: |
             await github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: context.payload.pull_request.number,
               body: '✅ All tests have completed and reviewers have been notified.\nLabels: ${{ join(github.event.pull_request.labels.*.name, ', ') }}'
             });
