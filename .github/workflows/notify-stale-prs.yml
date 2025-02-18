@@ -8,6 +8,7 @@ on:
 permissions:
   pull-requests: read    # Permission to read PRs
   issues: write         # Permission to create comments
+  contents: read
 
 jobs:
   notify:
