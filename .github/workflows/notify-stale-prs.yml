@@ -6,9 +6,9 @@ on:
   workflow_dispatch:      # Allows manual triggering for testing
 
 permissions:
-  pull-requests: read    # Permission to read PRs
-  issues: write         # Permission to create comments
-  contents: read
+  pull-requests: write   # Permission to read and comment on PRs
+  issues: write          # Permission to create comments
+  contents: read         # Permission to read repository contents
 
 jobs:
   notify:
@@ -21,6 +21,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
+          STALE_DAYS: 0  # Define the number of days after which a PR is considered stale
         run: |
           # Fetch PRs with proper error handling
           response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
@@ -39,11 +40,13 @@ jobs:
             creator=$(echo "$pr" | jq -r '.user.login')
             
             # Calculate age in days
-            age=$(( ($(date +%s) - $(date -d "$created_at" +%s)) / 86400 ))
+            current_time=$(date +%s)
+            created_time=$(date -u -d "$created_at" +%s)
+            age=$(( (current_time - created_time) / 86400 ))
             
             echo "Processing PR #$pr_id by $creator (age: $age days)"
             
-            if [ "$age" -lt 0 ]; then
+            if [ "$age" -ge "$STALE_DAYS" ]; then
               echo "PR #$pr_id is stale. Notifying..."
               curl -X POST \
                 -H "Authorization: token $GITHUB_TOKEN" \
