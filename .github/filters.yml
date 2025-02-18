@@ -1,0 +1,116 @@
+actions: .github/**/*
+framework: globis-framework/***/**/*
+database:
+  - globis_resources/datasources/**/*
+  - globis_fixes/*
+api:
+  - globis_webservice/**/*
+  - database_globis_development/globsync.js
+  - database_globis_development/globsync_factory.js
+  - database_globis_development/ws_methods.js
+  - database_globis_development/ws_objects.js
+  - database_globis_development/iglobsync.js
+valuelist: valuelists_globis_development/valuelists/*
+unittests: globis_unit_test/****/***/**/*
+metadata: globis-framework/globis_metadata/**/*
+globscan:
+  - globscan/***/**/*
+globgate:
+  - globgate/***/**/*
+  - globgate_methods/***/**/*
+globtake:
+  - globtake/***/**/*
+portals:
+  - globis_carrier_portal/***/**/*
+  - globis_portal/***/**/*
+unittestneeded:
+  - globis_fixes/*
+form:
+  - globis-framework/globis_login/forms/*.frm
+  - globis-framework/globis_metadata/forms/*.frm
+  - globis-framework/globis_ng_navigation/forms/*.frm
+  - globis-framework/globis_system/forms/*.frm
+  - globis-framework/svyJFXWebView/forms/*.frm
+  - globis-framework/svyUtils/forms/*.frm
+  - globis-framework/svy_i18n_translator/forms/*.frm
+  - globis-framework/svy_nav_navigation/forms/*.frm
+  - globis_accountancy/forms/*.frm
+  - globis_amqp_consumer_api/forms/*.frm
+  - globis_amqp_consumer_rfid/forms/*.frm
+  - globis_application_service/forms/*.frm
+  - globis_articles/forms/*.frm
+  - globis_attributes/forms/*.frm
+  - globis_basis/forms/*.frm
+  - globis_batch/forms/*.frm
+  - globis_batch_processor/forms/*.frm
+  - globis_batch_service/forms/*.frm
+  - globis_benchmark/forms/*.frm
+  - globis_billing/forms/*.frm
+  - globis_budget/forms/*.frm
+  - globis_calculation/forms/*.frm
+  - globis_carrier_portal/forms/*.frm
+  - globis_contracts/forms/*.frm
+  - globis_contribution/forms/*.frm
+  - globis_crm/forms/*.frm
+  - globis_demo/forms/*.frm
+  - globis_devextreme_demo/forms/*.frm
+  - globis_document_archiver/forms/*.frm
+  - globis_document_monitor/forms/*.frm
+  - globis_document_service/forms/*.frm
+  - globis_event/forms/*.frm
+  - globis_export_service/forms/*.frm
+  - globis_financial_plan/forms/*.frm
+  - globis_formbuilder/forms/*.frm
+  - globis_formule/forms/*.frm
+  - globis_import_service/forms/*.frm
+  - globis_intercompany/forms/*.frm
+  - globis_interfaces_forms/forms/*.frm
+  - globis_interfaces_service/forms/*.frm
+  - globis_logistics/forms/*.frm
+  - globis_maintenance_service/forms/*.frm
+  - globis_manufacturing/forms/*.frm
+  - globis_messenger_service/forms/*.frm
+  - globis_ng_form_converter/forms/*.frm
+  - globis_online/forms/*.frm
+  - globis_online_gs/forms/*.frm
+  - globis_online_interface_monitor/forms/*.frm
+  - globis_online_setup/forms/*.frm
+  - globis_operatorclients/forms/*.frm
+  - globis_operators/forms/*.frm
+  - globis_output/forms/*.frm
+  - globis_packaging/forms/*.frm
+  - globis_portal/forms/*.frm
+  - globis_principals/forms/*.frm
+  - globis_printing/forms/*.frm
+  - globis_print_monitor/forms/*.frm
+  - globis_product_configurator/forms/*.frm
+  - globis_projects/forms/*.frm
+  - globis_purchase/forms/*.frm
+  - globis_releases/forms/*.frm
+  - globis_sales/forms/*.frm
+  - globis_sales_methods/forms/*.frm
+  - globis_scanning/forms/*.frm
+  - globis_scanning_service/forms/*.frm
+  - globis_scheduling/forms/*.frm
+  - globis_service/forms/*.frm
+  - globis_studio/forms/*.frm
+  - globis_time_registration/forms/*.frm
+  - globis_transport/forms/*.frm
+  - globis_unit_test/forms/*.frm
+  - globis_warehouse/forms/*.frm
+  - globis_webservice/forms/*.frm
+  - globis_webservice_metadata/forms/*.frm
+  - globis_webservice_system/forms/*.frm
+  - globis_webshop/forms/*.frm
+  - globis_webshopservice/forms/*.frm
+  - globis_webshop_online/forms/*.frm
+  - globis_workflow_verification/forms/*.frm
+  - globjob/forms/*.frm
+  - globscan/forms/*.frm
+  - globtake/forms/*.frm
+  - globtest/forms/*.frm
+  - headless_client_demo/forms/*.frm
+  - mareco_online/forms/*.frm
+  - globis-framework/svy_nav_navigation_methods/forms/*.frm
+  - playground/forms/*.frm
+  - Wizard/forms/*.frm
