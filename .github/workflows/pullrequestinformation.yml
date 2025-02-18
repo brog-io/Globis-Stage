@@ -1,0 +1,179 @@
+name: "pull request information"
+on: [pull_request]
+jobs:
+  add-label:
+    runs-on: ubuntu-latest
+    steps:
+      - name: labeler
+        uses: actions/labeler@v4
+        with:
+          repo-token: "${{ secrets.GITHUB_TOKEN }}"
+          configuration-path: .github/filters.yml
+  add-assignees-and-slack-notification-request:
+    runs-on: ubuntu-latest
+    needs: [add-label]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: dorny/paths-filter@v2
+        id: changes
+        with:
+          filters: .github/filters.yml
+      - name: framework assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: steps.changes.outputs.framework == 'true'
+        with:
+          configuration-path: .github/framework_auto_assign.yml
+      - name: forms assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: steps.changes.outputs.form == 'true'
+        with:
+          configuration-path: .github/forms_auto_assign.yml
+      - name: actions assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: steps.changes.outputs.actions == 'true'
+        with:
+          configuration-path: .github/actions_auto_assign.yml
+      - name: api assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: steps.changes.outputs.api == 'true'
+        with:
+          configuration-path: .github/api_auto_assign.yml
+      - name: unit tests assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: steps.changes.outputs.unittests == 'true'
+        with:
+          configuration-path: .github/unittests_auto_assign.yml
+      - name: globscan or globtake assign
+        uses: kentaro-m/auto-assign-action@v1.1.2
+        if: >-
+          steps.changes.outputs.globscan == 'true' ||
+          steps.changes.outputs.globtake == 'true'
+        with:
+          configuration-path: .github/globscan_globtake_auto_assign.yml
+      - name: Slack Notification framework
+        uses: Ilshidur/action-slack@2.0.2
+        if: steps.changes.outputs.framework == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request <{{EVENT_PAYLOAD.pull_request.html_url
+            }}|{{EVENT_PAYLOAD.pull_request.title }}> and asked <@U1GKC4XQE>,
+            <@U1G8Z4VLZ>, <@U1GKXMZLY> or <@UM90GUYUC> to review.", "username":
+            "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new framework commit has been pushed.
+      - name: Slack Notification actions
+        uses: Ilshidur/action-slack@2.0.2
+        if: steps.changes.outputs.actions == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@U1GKC4XQE>, <@U1G8Z4VLZ>, <@U4DAY924W> or
+            <@UM90GUYUC> to review.", "username": "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new actions commit has been pushed.
+      - name: Slack Notification form
+        uses: Ilshidur/action-slack@2.0.2
+        if: steps.changes.outputs.form == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@UCQEQENV7> to review.", "username": "{{ GITHUB_ACTOR
+            }}"}
+        with:
+          args: A new form commit has been pushed.
+      - name: Comment when label form
+        uses: actions/github-script@0.3.0
+        if: steps.changes.outputs.form == 'true'
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+          script: >
+            const { issue: { number: issue_number }, repo: { owner, repo }  } =
+            context;
+
+            github.issues.createComment({ issue_number, owner, repo, body: 'Add
+            image of Servoy outline and screenshot of form in client' });
+      - name: Slack Notification api
+        uses: Ilshidur/action-slack@2.0.2
+        if: steps.changes.outputs.api == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@U4DAY924W>, <@U1G8HAA12> or <@UM90GUYUC> to
+            review.", "username": "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new api commit has been pushed.
+      - name: Slack Notification unit tests
+        uses: Ilshidur/action-slack@2.0.2
+        if: steps.changes.outputs.unittests == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@U1G8Z4VLZ> to review.", "username": "{{ GITHUB_ACTOR
+            }}"}
+        with:
+          args: A new unit tests commit has been pushed.
+      - name: Slack Notification globscan or globtake
+        uses: Ilshidur/action-slack@2.0.2
+        if: >-
+          steps.changes.outputs.globscan == 'true' ||
+          steps.changes.outputs.globtake == 'true'
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@U1GKC4XQE>, <@U1G8Z4VLZ>, <@U1GD0UTN3> or
+            <@UM90GUYUC> to review.", "username": "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new globscan or globtake commit has been pushed.
+      - name: Slack Notification team one
+        uses: Ilshidur/action-slack@2.0.2
+        if: contains(github.event.pull_request.labels.*.name, 'team_one')
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@U1G8Z4VLZ>, <@U1GKC4XQE>, <@U04D17TNCC8>
+            or <@US0DBPUUB> to review.", "username": "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new team one commit has been pushed.
+      - name: Slack Notification team two
+        uses: Ilshidur/action-slack@2.0.2
+        if: contains(github.event.pull_request.labels.*.name, 'team_two')
+        env:
+          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
+          SLACK_CHANNEL: pull_request
+          SLACK_CUSTOM_PAYLOAD: >-
+            {"text":"started pull request
+            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
+            }}> and asked <@UCQEQENV7>, <@U1G8HAA12>, <@U4DAY924W>, <@U1GD0UTN3>,
+            <@UHH1UDJN8>, <@U1GKXMZLY>, <@U1GC3LP1V>, <@U02SD7YTM7F>, <@U03S9HRA6MU> or <@U1GCYJKBK> to
+            review.", "username": "{{ GITHUB_ACTOR }}"}
+        with:
+          args: A new team two commit has been pushed.
+  enable-auto-merge:
+    runs-on: ubuntu-latest
+    if: ${{ !contains(github.event.pull_request.labels.*.name,'auto-cherry-pick') }}
+    needs: [add-label]
+    steps:
+      - name: auto-merge
+        uses: alexwilson/enable-github-automerge-action@main
+        with:
+          github-token: "${{secrets.PR_CREATION}}"
