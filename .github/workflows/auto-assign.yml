@@ -118,31 +118,32 @@ jobs:
               core.warning("No reviewers found to assign.");
             }
 
-      - name: Notify Reviewers on Slack
-        uses: Ilshidur/action-slack@2.0.2
+      - name: Notify Reviewers on Discord
         env:
-          SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
-          SLACK_CHANNEL: pull_request
-        with:
-          args: |
-            {
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*New PR Ready for Review*\n<${{ github.event.pull_request.html_url }}|${{ github.event.pull_request.title }}>"
-                  }
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "✅ All tests have passed\n👥 Reviewers: ${{ steps.codeowners.outputs.reviewers }}\n🏷️ Areas: ${{ join(github.event.pull_request.labels.*.name, ', ') }}"
-                  }
-                }
-              ]
-            }
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{
+            "username": "GitHub Actions",
+            "avatar_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png",
+            "embeds": [{
+              "title": "New PR Ready for Review",
+              "url": "${{ github.event.pull_request.html_url }}",
+              "description": "**${{ github.event.pull_request.title }}**",
+              "color": 5814783,
+              "fields": [
+                { "name": "✅ Test Status", "value": "All tests have passed", "inline": true },
+                { "name": "👥 Reviewers", "value": "${{ steps.codeowners.outputs.reviewers }}", "inline": true },
+                { "name": "🏷️ Labels", "value": "${{ join(github.event.pull_request.labels.*.name, ', ') }}", "inline": false }
+              ],
+              "footer": {
+                "text": "GitHub Actions | PR Review System",
+                "icon_url": "https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png"
+              }
+            }]
+          }' \
+          $DISCORD_WEBHOOK
 
   update-pr-status:
     needs: [process-pr, notify-reviewers]
