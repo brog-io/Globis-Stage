@@ -43,7 +43,7 @@ jobs:
             
             echo "Processing PR #$pr_id by $creator (age: $age days)"
             
-            [ "$age" -gt 0 ] || [ "$age" == "0" ]; then
+            if [ "$age" -gt 0 ]; then
               echo "PR #$pr_id is stale. Notifying..."
               curl -X POST \
                 -H "Authorization: token $GITHUB_TOKEN" \
