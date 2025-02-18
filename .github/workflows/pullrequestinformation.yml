@@ -141,33 +141,6 @@ jobs:
             <@UM90GUYUC> to review.", "username": "{{ GITHUB_ACTOR }}"}
         with:
           args: A new globscan or globtake commit has been pushed.
-      - name: Slack Notification team one
-        uses: Ilshidur/action-slack@2.0.2
-        if: contains(github.event.pull_request.labels.*.name, 'team_one')
-        env:
-          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
-          SLACK_CHANNEL: pull_request
-          SLACK_CUSTOM_PAYLOAD: >-
-            {"text":"started pull request
-            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
-            }}> and asked <@U1G8Z4VLZ>, <@U1GKC4XQE>, <@U04D17TNCC8>
-            or <@US0DBPUUB> to review.", "username": "{{ GITHUB_ACTOR }}"}
-        with:
-          args: A new team one commit has been pushed.
-      - name: Slack Notification team two
-        uses: Ilshidur/action-slack@2.0.2
-        if: contains(github.event.pull_request.labels.*.name, 'team_two')
-        env:
-          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
-          SLACK_CHANNEL: pull_request
-          SLACK_CUSTOM_PAYLOAD: >-
-            {"text":"started pull request
-            <{{EVENT_PAYLOAD.pull_request.html_url}}|{{EVENT_PAYLOAD.pull_request.title
-            }}> and asked <@UCQEQENV7>, <@U1G8HAA12>, <@U4DAY924W>, <@U1GD0UTN3>,
-            <@UHH1UDJN8>, <@U1GKXMZLY>, <@U1GC3LP1V>, <@U02SD7YTM7F>, <@U03S9HRA6MU> or <@U1GCYJKBK> to
-            review.", "username": "{{ GITHUB_ACTOR }}"}
-        with:
-          args: A new team two commit has been pushed.
   enable-auto-merge:
     runs-on: ubuntu-latest
     if: ${{ !contains(github.event.pull_request.labels.*.name,'auto-cherry-pick') }}

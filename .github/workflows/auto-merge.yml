@@ -1,8 +1,9 @@
-name: Auto-Merge Optimization
+name: Auto-Merge
 
 on:
   pull_request:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+  pull_request_target:
+    types: [labeled, unlabeled]
 
 jobs:
   auto-merge:
