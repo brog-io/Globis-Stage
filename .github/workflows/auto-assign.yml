@@ -122,6 +122,17 @@ jobs:
         env:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
+          if [ -z "$DISCORD_WEBHOOK" ]; then
+            echo "❌ DISCORD_WEBHOOK is not set."
+            exit 1
+          fi
+          
+          REVIEWERS="${{ steps.codeowners.outputs.reviewers }}"
+          if [ -z "$REVIEWERS" ]; then
+            echo "⚠️ No reviewers found, skipping Discord notification."
+            exit 0
+          fi
+
           curl -H "Content-Type: application/json" \
           -X POST \
           -d '{
@@ -134,7 +145,7 @@ jobs:
               "color": 5814783,
               "fields": [
                 { "name": "✅ Test Status", "value": "All tests have passed", "inline": true },
-                { "name": "👥 Reviewers", "value": "${{ steps.codeowners.outputs.reviewers }}", "inline": true },
+                { "name": "👥 Reviewers", "value": "'"$REVIEWERS"'", "inline": true },
                 { "name": "🏷️ Labels", "value": "${{ join(github.event.pull_request.labels.*.name, ', ') }}", "inline": false }
               ],
               "footer": {
