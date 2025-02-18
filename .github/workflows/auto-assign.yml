@@ -126,7 +126,37 @@ jobs:
                 }
               ]
             }
-
+        - name: Assign Reviewers
+          uses: actions/github-script@v6
+          with:
+            script: |
+              const reviewers = "${{ steps.codeowners.outputs.reviewers }}".split(',').filter(r => r);
+              if (reviewers.length > 0) {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  reviewers: reviewers
+                });
+              } else {
+                core.warning("No reviewers found to assign.");
+              }
+      - name: Assign Reviewers
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const reviewers = "${{ steps.codeowners.outputs.reviewers }}".split(',').filter(r => r);
+            if (reviewers.length > 0) {
+              await github.rest.pulls.requestReviewers({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                reviewers: reviewers
+              });
+            } else {
+              core.warning("No reviewers found to assign.");
+            }
+    
   update-pr-status:
     needs: [process-pr, notify-reviewers]
     runs-on: ubuntu-latest
