@@ -2,16 +2,14 @@ name: Dynamic Label Assignment from CODEOWNERS
 
 on:
   pull_request:
-    
+
 jobs:
   label_pr:
     runs-on: ubuntu-latest
     permissions:
-      pull-requests: read  # Add permission to access pull request details
-    
-    env:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the correct token name
-    
+      pull-requests: write  # Required to add labels to the PR
+      contents: read        # Required to read the CODEOWNERS file
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -20,36 +18,48 @@ jobs:
         id: modified_files
         run: |
           files=$(gh pr view ${{ github.event.pull_request.number }} --json files -q ".files[].path")
-          echo "::set-output name=files::$files"
+          echo "files=$files" >> $GITHUB_OUTPUT
 
       - name: Get code owners from CODEOWNERS file
         id: codeowners
         run: |
-          # Parse the CODEOWNERS file from the root directory
-          owners=$(cat CODEOWNERS)
-          echo "::set-output name=owners::$owners"
+          if [[ -f CODEOWNERS ]]; then
+            owners=$(grep -v '^#' CODEOWNERS | grep -v '^$')  # Ignore comments and empty lines
+            echo "owners=$owners" >> $GITHUB_OUTPUT
+          else
+            echo "CODEOWNERS file not found. Skipping label assignment."
+            exit 0
+          fi
 
       - name: Assign dynamic labels based on CODEOWNERS
         run: |
-          # Extract file paths and owners
           modified_files="${{ steps.modified_files.outputs.files }}"
           code_owners="${{ steps.codeowners.outputs.owners }}"
-          
-          # Logic to match files with owners and create labels
-          labels_to_add=()
-          for file in $modified_files; do
-            for line in $code_owners; do
-              # Basic check for matching paths (you can improve this regex/matching logic)
-              if [[ "$file" == $line* ]]; then
-                # Extract the owner(s) and assign as label
-                owner=$(echo $line | cut -d ' ' -f2)
-                labels_to_add+=($owner)
+
+          # Convert outputs to arrays
+          files_array=($modified_files)
+          owners_array=($(echo "$code_owners" | tr '\n' ' '))
+
+          # Create a set of labels to add
+          declare -A labels_to_add
+
+          for file in "${files_array[@]}"; do
+            for line in "${owners_array[@]}"; do
+              # Extract the path and owners from the CODEOWNERS line
+              path=$(echo "$line" | awk '{print $1}')
+              owners=$(echo "$line" | awk '{for (i=2; i<=NF; i++) print $i}')
+
+              # Check if the file matches the CODEOWNERS path
+              if [[ "$file" == $path* ]]; then
+                for owner in $owners; do
+                  labels_to_add["$owner"]=1
+                done
               fi
             done
           done
-          
-          # Add labels to the PR (ensure labels exist in the repository first)
-          for label in "${labels_to_add[@]}"; do
-            echo "Adding label $label"
+
+          # Add labels to the PR
+          for label in "${!labels_to_add[@]}"; do
+            echo "Adding label: $label"
             gh pr edit ${{ github.event.pull_request.number }} --add-label "$label"
           done
