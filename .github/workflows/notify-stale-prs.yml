@@ -21,7 +21,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          STALE_DAYS: 0  # Define the number of days after which a PR is considered stale
+          STALE_DAYS: 3  # Define the number of days after which a PR is considered stale
         run: |
           # Fetch PRs with proper error handling
           response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
