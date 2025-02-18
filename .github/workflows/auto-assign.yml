@@ -1,65 +1,62 @@
-name: Dynamic Label Assignment from CODEOWNERS
-
+name: Auto Assign PR Reviewers
 on:
   pull_request:
+    types: [opened, ready_for_review, reopened, synchronize]
 
 jobs:
-  label_pr:
+  auto-assign:
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: write  # Required to add labels to the PR
-      contents: read        # Required to read the CODEOWNERS file
-
     steps:
       - name: Checkout code
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Get modified files in the PR
-        id: modified_files
-        run: |
-          files=$(gh pr view ${{ github.event.pull_request.number }} --json files -q ".files[].path")
-          echo "files=$files" >> $GITHUB_OUTPUT
+      - name: Get changed files
+        id: changed-files
+        uses: tj-actions/changed-files@v42
+        with:
+          files_separator: ","
 
-      - name: Get code owners from CODEOWNERS file
+      - name: Get code owners
         id: codeowners
-        run: |
-          if [[ -f CODEOWNERS ]]; then
-            owners=$(grep -v '^#' CODEOWNERS | grep -v '^$')  # Ignore comments and empty lines
-            echo "owners=$owners" >> $GITHUB_OUTPUT
-          else
-            echo "CODEOWNERS file not found. Skipping label assignment."
-            exit 0
-          fi
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: codeowners } = await github.rest.repos.getCodeowners({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+            
+            if (!codeowners.owners || codeowners.owners.length === 0) {
+              core.setFailed('No CODEOWNERS file found or file is empty');
+              return;
+            }
 
-      - name: Assign dynamic labels based on CODEOWNERS
-        run: |
-          modified_files="${{ steps.modified_files.outputs.files }}"
-          code_owners="${{ steps.codeowners.outputs.owners }}"
+            const changedFiles = '${{ steps.changed-files.outputs.all_changed_files }}'.split(',');
+            const matchingOwners = new Set();
 
-          # Convert outputs to arrays
-          files_array=($modified_files)
-          owners_array=($(echo "$code_owners" | tr '\n' ' '))
+            for (const file of changedFiles) {
+              for (const owner of codeowners.owners) {
+                if (owner.pattern && file.match(owner.pattern)) {
+                  owner.usernames.forEach(username => matchingOwners.add(username));
+                }
+              }
+            }
 
-          # Create a set of labels to add
-          declare -A labels_to_add
-
-          for file in "${files_array[@]}"; do
-            for line in "${owners_array[@]}"; do
-              # Extract the path and owners from the CODEOWNERS line
-              path=$(echo "$line" | awk '{print $1}')
-              owners=$(echo "$line" | awk '{for (i=2; i<=NF; i++) print $i}')
-
-              # Check if the file matches the CODEOWNERS path
-              if [[ "$file" == $path* ]]; then
-                for owner in $owners; do
-                  labels_to_add["$owner"]=1
-                done
-              fi
-            done
-          done
-
-          # Add labels to the PR
-          for label in "${!labels_to_add[@]}"; do
-            echo "Adding label: $label"
-            gh pr edit ${{ github.event.pull_request.number }} --add-label "$label"
-          done
+            const reviewers = Array.from(matchingOwners);
+            if (reviewers.length > 0) {
+              try {
+                await github.rest.pulls.requestReviewers({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  pull_number: context.payload.pull_request.number,
+                  reviewers: reviewers
+                });
+                console.log(`Successfully assigned reviewers: ${reviewers.join(', ')}`);
+              } catch (error) {
+                core.setFailed(`Failed to assign reviewers: ${error.message}`);
+              }
+            } else {
+              console.log('No matching code owners found for the changed files');
+            }
