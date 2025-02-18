@@ -2,10 +2,13 @@ name: Dynamic Label Assignment from CODEOWNERS
 
 on:
   pull_request:
-
+    
 jobs:
   label_pr:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read  # Add permission to access pull request details
+    
     env:
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Use the correct token name
     
