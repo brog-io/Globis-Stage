@@ -2,68 +2,143 @@ import os
 import requests
 import json
 from datetime import datetime, timezone
+from typing import List, Dict, Optional
+from dataclasses import dataclass
+import logging
 
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-REPO = os.getenv("REPO")
-STALE_DAYS = int(os.getenv("STALE_DAYS", 1))
-SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
-headers = {
-    "Authorization": f"token {GITHUB_TOKEN}",
-    "Accept": "application/vnd.github.v3+json",
-}
-pr_url = f"https://api.github.com/repos/{REPO}/pulls?state=open"
+@dataclass
+class PullRequest:
+    id: int
+    creator: str
+    url: str
+    created_at: datetime
+    age: int
 
-response = requests.get(pr_url, headers=headers)
-if response.status_code != 200:
-    print(f"Error fetching PRs: {response.json().get('message')}")
-    exit(1)
 
-stale_prs = []
-now = datetime.now(timezone.utc)
+class GitHubPRMonitor:
+    def __init__(self):
+        self.github_token = os.getenv("GITHUB_TOKEN")
+        self.repo = os.getenv("REPO")
+        self.stale_days = int(os.getenv("STALE_DAYS", "2"))
+        self.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
 
-for pr in response.json():
-    pr_id = pr["number"]
-    creator = pr["user"]["login"]
-    pr_link = pr["html_url"]
-    created_at = datetime.fromisoformat(pr["created_at"].replace("Z", "+00:00"))
-    age = (now - created_at).days
+        if not all([self.github_token, self.repo]):
+            raise ValueError(
+                "Missing required environment variables: GITHUB_TOKEN, REPO"
+            )
 
-    if age >= STALE_DAYS:
-        labels_url = f"https://api.github.com/repos/{REPO}/issues/{pr_id}/labels"
-        labels_response = requests.get(labels_url, headers=headers)
-
-        if any(label["name"] == "Notified" for label in labels_response.json()):
-            print(f"PR #{pr_id} already notified, skipping.")
-            continue
-
-        # Comment on PR
-        comment_url = f"https://api.github.com/repos/{REPO}/issues/{pr_id}/comments"
-        comment = {
-            "body": f"@{creator} This PR has been open for {age} days. Please update its status."
+        self.headers = {
+            "Authorization": f"token {self.github_token}",
+            "Accept": "application/vnd.github.v3+json",
         }
-        requests.post(comment_url, headers=headers, json=comment)
 
-        # Add "Notified" label
-        requests.post(labels_url, headers=headers, json={"labels": ["Notified"]})
+        logging.basicConfig(
+            level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+        )
+        self.logger = logging.getLogger(__name__)
 
-        stale_prs.append({"id": pr_id, "creator": creator, "url": pr_link, "age": age})
+    def get_pull_requests(self) -> List[Dict]:
+        """Fetch all open pull requests."""
+        pr_url = f"https://api.github.com/repos/{self.repo}/pulls?state=open"
+        response = requests.get(pr_url, headers=self.headers)
+        response.raise_for_status()
+        return response.json()
 
-if stale_prs and SLACK_WEBHOOK_URL:
-    for pr in stale_prs:
+    def is_pr_notified(self, pr_id: int) -> bool:
+        """Check if PR has already been notified."""
+        labels_url = f"https://api.github.com/repos/{self.repo}/issues/{pr_id}/labels"
+        response = requests.get(labels_url, headers=self.headers)
+        response.raise_for_status()
+        return any(label["name"] == "Notified" for label in response.json())
+
+    def notify_pr(self, pr: PullRequest) -> None:
+        """Add comment and label to PR."""
+        # Add comment
+        comment_url = (
+            f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/comments"
+        )
+        comment = {
+            "body": f"@{pr.creator} This PR has been open for {pr.age} days. Please update its status."
+        }
+        response = requests.post(comment_url, headers=self.headers, json=comment)
+        response.raise_for_status()
+
+        # Add label
+        labels_url = f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/labels"
+        response = requests.post(
+            labels_url, headers=self.headers, json={"labels": ["Notified"]}
+        )
+        response.raise_for_status()
+
+        self.logger.info(f"Notified PR #{pr.id}")
+
+    def send_slack_notification(self, pr: PullRequest) -> None:
+        """Send notification to Slack."""
+        if not self.slack_webhook_url:
+            return
+
         slack_payload = {
-            "text": f"🚨 Stale PR Detected: <{pr['url']}|#{pr['id']}> by @{pr['creator']}",
+            "text": f"🚨 Stale PR Detected: <{pr.url}|#{pr.id}> by @{pr.creator}",
             "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*🚨 Stale PR Detected*\n*PR:* <{pr['url']}|#{pr['id']}>\n*Creator:* @{pr['creator']}\n*Age:* {pr['age']} days",
+                        "text": f"*🚨 Stale PR Detected*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days",
                     },
                 }
             ],
         }
-        requests.post(SLACK_WEBHOOK_URL, json=slack_payload)
-        print(f"Slack notification sent for PR #{pr['id']}")
-else:
-    print("No stale PRs found.")
+
+        response = requests.post(self.slack_webhook_url, json=slack_payload)
+        response.raise_for_status()
+        self.logger.info(f"Slack notification sent for PR #{pr.id}")
+
+    def process_pull_requests(self) -> None:
+        """Main method to process all pull requests."""
+        try:
+            pull_requests = self.get_pull_requests()
+            now = datetime.now(timezone.utc)
+            stale_prs = []
+
+            for pr_data in pull_requests:
+                pr_id = pr_data["number"]
+                created_at = datetime.fromisoformat(
+                    pr_data["created_at"].replace("Z", "+00:00")
+                )
+                age = (now - created_at).days
+
+                if age >= self.stale_days and not self.is_pr_notified(pr_id):
+                    pr = PullRequest(
+                        id=pr_id,
+                        creator=pr_data["user"]["login"],
+                        url=pr_data["html_url"],
+                        created_at=created_at,
+                        age=age,
+                    )
+
+                    try:
+                        self.notify_pr(pr)
+                        self.send_slack_notification(pr)
+                        stale_prs.append(pr)
+                    except requests.RequestException as e:
+                        self.logger.error(f"Error processing PR #{pr_id}: {str(e)}")
+
+            if not stale_prs:
+                self.logger.info("No stale PRs found.")
+            else:
+                self.logger.info(f"Processed {len(stale_prs)} stale PRs")
+
+        except requests.RequestException as e:
+            self.logger.error(f"Error fetching PRs: {str(e)}")
+            raise
+
+
+def main():
+    monitor = GitHubPRMonitor()
+    monitor.process_pull_requests()
+
+
+if __name__ == "__main__":
+    main()
