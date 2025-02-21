@@ -2,14 +2,13 @@ name: Notify Stale PRs
 
 on:
   schedule:
-    - cron: '0 0 * * *'  # Runs daily at midnight
-  workflow_dispatch:      # Allows manual triggering for testing
+    - cron: "0 0 * * *"
   pull_request:
 
 permissions:
-  pull-requests: write   # Permission to read and comment on PRs
-  issues: write          # Permission to create comments
-  contents: read         # Permission to read repository contents
+  pull-requests: write
+  issues: write
+  contents: read
 
 jobs:
   notify:
@@ -18,87 +17,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Fetch and process PRs
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run stale PR checker
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          STALE_DAYS: 3  # Define the number of days after which a PR is considered stale
-          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}  # Slack webhook URL
-        run: |
-          # Fetch PRs with proper error handling
-          response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-            "https://api.github.com/repos/$REPO/pulls?state=open")
-          
-          # Check if the response is an error
-          if echo "$response" | jq -e 'has("message")' > /dev/null; then
-            echo "Error fetching PRs: $(echo "$response" | jq -r '.message')"
-            exit 1
-          fi
-          
-          # Process each PR
-          echo "$response" | jq -c '.[]' | while read -r pr; do
-            created_at=$(echo "$pr" | jq -r '.created_at')
-            pr_id=$(echo "$pr" | jq -r '.number')
-            creator=$(echo "$pr" | jq -r '.user.login')
-            pr_url=$(echo "$pr" | jq -r '.html_url')
-            
-            # Calculate age in days
-            current_time=$(date +%s)
-            created_time=$(date -u -d "$created_at" +%s)
-            age=$(( (current_time - created_time) / 86400 ))
-            
-            echo "Processing PR #$pr_id by $creator (age: $age days)"
-            
-            if [ "$age" -ge "$STALE_DAYS" ]; then
-              echo "PR #$pr_id is stale. Notifying..."
-
-              # Check if the PR has already been notified (based on label)
-              labels_response=$(curl -s -H "Authorization: token $GITHUB_TOKEN" \
-                "https://api.github.com/repos/$REPO/issues/$pr_id/labels")
-              if echo "$labels_response" | jq -e '.[].name == "Notified"' > /dev/null; then
-                echo "PR #$pr_id has already been notified. Skipping Slack notification."
-                continue
-              fi
-
-              # Comment on the PR
-              curl -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/$REPO/issues/$pr_id/comments" \
-                -d "{\"body\": \"@$creator This PR has been open for $age days. Please provide an update on its status or any blockers preventing its completion.\"}"
-              
-              # Add "Notified" label to the PR to prevent further notifications
-              curl -X POST \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github.v3+json" \
-                "https://api.github.com/repos/$REPO/issues/$pr_id/labels" \
-                -d '{"labels":["Notified"]}'
-
-              # Set the output to trigger Slack notification
-              echo "stale_prs=true" >> $GITHUB_ENV
-              echo "pr_url=$pr_url" >> $GITHUB_ENV
-              echo "pr_id=$pr_id" >> $GITHUB_ENV
-              echo "creator=$creator" >> $GITHUB_ENV
-              echo "age=$age" >> $GITHUB_ENV
-            fi
-          done
-
-      - name: Slack Notification for Stale PRs
-        uses: Ilshidur/action-slack@2.0.2
-        if: env.stale_prs == 'true'  # Trigger Slack notification only if a stale PR is found
-        env:
-          SLACK_WEBHOOK: "${{ secrets.SLACK_WEBHOOK_URL }}"
-          SLACK_CHANNEL: internship_pull_request
-          SLACK_CUSTOM_PAYLOAD: >-
-            {
-              "text": "🚨 Stale PR Detected: <${{ env.pr_url }}|#${{ env.pr_id }}> by @${{ env.creator }}",
-              "blocks": [
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "*🚨 Stale PR Detected*\n*PR:* <${{ env.pr_url }}|#${{ env.pr_id }}>\n*Creator:* @${{ env.creator }}\n*Age:* ${{ env.age }} days"
-                  }
-                }
-              ]
-            }
+          STALE_DAYS: 3
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: python .github/scripts/stale-pr-checker.py
