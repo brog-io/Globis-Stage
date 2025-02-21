@@ -21,7 +21,7 @@ class GitHubPRMonitor:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
         self.repo = os.getenv("REPO")
-        self.stale_days = int(os.getenv("STALE_DAYS", "2"))
+        self.stale_days = int(os.getenv("STALE_DAYS", "1"))
         self.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
         self.event_name = os.getenv("GITHUB_EVENT_NAME", "")
         self.event_path = os.getenv("GITHUB_EVENT_PATH", "")
