@@ -12,34 +12,20 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
-    env:
-      GH_TOKEN: ${{ github.token }}  # Authenticate GitHub CLI
     steps:
       - uses: actions/checkout@v4
-      - name: Check if PR has the 'no-auto-merge' label
-        id: check-label
-        run: |
-          if gh pr view ${{ github.event.pull_request.number }} --json labels --jq '.labels[].name' | grep -q 'no-auto-merge'; then
-            echo "PR has 'no-auto-merge' label, skipping auto-merge."
-            echo "skip_auto_merge=true" >> $GITHUB_OUTPUT
-          else
-            echo "PR does not have 'no-auto-merge' label, proceeding with auto-merge check."
-            echo "skip_auto_merge=false" >> $GITHUB_OUTPUT
-          fi
 
-      - name: Check if PR is approved
-        if: steps.check-label.outputs.skip_auto_merge == 'false'
-        id: check-approval
-        run: |
-          if gh pr view ${{ github.event.pull_request.number }} --json reviewDecision --jq '.reviewDecision' | grep -q 'APPROVED'; then
-            echo "PR is approved, enabling auto-merge."
-            echo "enable_auto_merge=true" >> $GITHUB_OUTPUT
-          else
-            echo "PR is not approved, skipping auto-merge."
-            echo "enable_auto_merge=false" >> $GITHUB_OUTPUT
-          fi
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
 
-      - name: Enable Auto-Merge
-        if: steps.check-approval.outputs.enable_auto_merge == 'true'
-        run: |
-          gh pr merge ${{ github.event.pull_request.number }} --auto --merge
+      - name: Install dependencies
+        run: pip install requests
+
+      - name: Run Auto-Merge script
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: python .github/scripts/auto-merge.py
