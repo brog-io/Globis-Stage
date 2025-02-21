@@ -21,7 +21,9 @@ class GitHubPRMonitor:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
         self.repo = os.getenv("REPO")
-        self.stale_days = int(os.getenv("STALE_DAYS", "1"))
+        self.stale_days = int(
+            os.getenv("STALE_DAYS", "2")
+        )  # Default is now explicitly 3
         self.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
         self.event_name = os.getenv("GITHUB_EVENT_NAME", "")
         self.event_path = os.getenv("GITHUB_EVENT_PATH", "")
@@ -58,7 +60,7 @@ class GitHubPRMonitor:
             f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/comments"
         )
         comment = {
-            "body": f"@{pr.creator} This PR has been open for more than {self.stale_days} days. Please update or close it."
+            "body": f"@{pr.creator} This PR has been open for {pr.age} days, which is more than our threshold of {self.stale_days} days. Please update or close it."
         }
         response = requests.post(comment_url, headers=self.headers, json=comment)
         response.raise_for_status()
@@ -87,7 +89,7 @@ class GitHubPRMonitor:
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*🚨 Stale PR Alert*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days\n*Status:* Needs attention",
+                        "text": f"*🚨 Stale PR Alert*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days\n*Threshold:* {self.stale_days} days\n*Status:* Needs attention",
                     },
                 }
             ],
@@ -115,9 +117,11 @@ class GitHubPRMonitor:
                 )
                 age = (now - created_at).days
 
-                # Skip PRs that aren't old enough
-                if age >= self.stale_days:
-                    self.logger.info(f"Skipping PR #{pr_id} (age: {age} days)")
+                # Skip PRs that aren't old enough - changed to strictly less than
+                if age < self.stale_days:
+                    self.logger.info(
+                        f"Skipping PR #{pr_id} (age: {age} days, threshold: {self.stale_days} days)"
+                    )
                     continue
 
                 # Create PR object for stale PRs
