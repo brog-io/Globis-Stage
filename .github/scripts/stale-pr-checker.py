@@ -41,49 +41,15 @@ class GitHubPRMonitor:
         )
         self.logger = logging.getLogger(__name__)
 
-    def should_check_pr(self) -> bool:
-        """Determine if we should check PRs based on the trigger event."""
-        if self.event_name == "schedule":
-            return True
-        elif self.event_name == "workflow_dispatch":
-            return True
-        elif self.event_name == "pull_request":
-            # Only check the specific PR that triggered the workflow
-            try:
-                with open(self.event_path) as f:
-                    event_data = json.load(f)
-                    pr_number = event_data["pull_request"]["number"]
-                    self.logger.info(f"Pull request event for PR #{pr_number}")
-                    return True
-            except Exception as e:
-                self.logger.error(f"Error reading event data: {e}")
-                return False
-        return False
-
     def get_pull_requests(self) -> List[Dict]:
-        """Fetch pull requests based on the event type."""
-        if self.event_name == "pull_request":
-            # For PR events, only check the triggering PR
-            with open(self.event_path) as f:
-                event_data = json.load(f)
-                pr_number = event_data["pull_request"]["number"]
-                pr_url = f"https://api.github.com/repos/{self.repo}/pulls/{pr_number}"
-                response = requests.get(pr_url, headers=self.headers)
-                response.raise_for_status()
-                return [response.json()]
-        else:
-            # For scheduled runs, check all open PRs
-            pr_url = f"https://api.github.com/repos/{self.repo}/pulls?state=open"
-            response = requests.get(pr_url, headers=self.headers)
-            response.raise_for_status()
-            return response.json()
-
-    def is_pr_notified(self, pr_id: int) -> bool:
-        """Check if PR has already been notified."""
-        labels_url = f"https://api.github.com/repos/{self.repo}/issues/{pr_id}/labels"
-        response = requests.get(labels_url, headers=self.headers)
+        """Fetch all open pull requests."""
+        pr_url = f"https://api.github.com/repos/{self.repo}/pulls?state=open"
+        self.logger.info(f"Fetching PRs from: {pr_url}")
+        response = requests.get(pr_url, headers=self.headers)
         response.raise_for_status()
-        return any(label["name"] == "Notified" for label in response.json())
+        prs = response.json()
+        self.logger.info(f"Found {len(prs)} open PRs")
+        return prs
 
     def notify_pr(self, pr: PullRequest) -> None:
         """Add comment and label to PR."""
@@ -92,7 +58,7 @@ class GitHubPRMonitor:
             f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/comments"
         )
         comment = {
-            "body": f"@{pr.creator} This PR has been open for {pr.age} days. Please update its status."
+            "body": f"@{pr.creator} Testing PR notification system. This is a test message."
         }
         response = requests.post(comment_url, headers=self.headers, json=comment)
         response.raise_for_status()
@@ -109,16 +75,19 @@ class GitHubPRMonitor:
     def send_slack_notification(self, pr: PullRequest) -> None:
         """Send notification to Slack."""
         if not self.slack_webhook_url:
+            self.logger.info(
+                "No Slack webhook URL configured, skipping Slack notification"
+            )
             return
 
         slack_payload = {
-            "text": f"🚨 Stale PR Detected: <{pr.url}|#{pr.id}> by @{pr.creator}",
+            "text": f"🧪 Test Notification: <{pr.url}|#{pr.id}> by @{pr.creator}",
             "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*🚨 Stale PR Detected*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days",
+                        "text": f"*🧪 Test PR Notification*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days",
                     },
                 }
             ],
@@ -129,18 +98,14 @@ class GitHubPRMonitor:
         self.logger.info(f"Slack notification sent for PR #{pr.id}")
 
     def process_pull_requests(self) -> None:
-        """Main method to process all pull requests."""
-        if not self.should_check_pr():
-            self.logger.info("Skipping PR check based on trigger event")
-            return
-
+        """Process all PRs in test mode."""
         try:
-            self.logger.info(f"Starting PR check for {self.repo}")
+            self.logger.info(f"Starting PR notification test for {self.repo}")
             self.logger.info(f"Event type: {self.event_name}")
 
             pull_requests = self.get_pull_requests()
             now = datetime.now(timezone.utc)
-            stale_prs = []
+            processed_prs = []
 
             for pr_data in pull_requests:
                 pr_id = pr_data["number"]
@@ -149,26 +114,28 @@ class GitHubPRMonitor:
                 )
                 age = (now - created_at).days
 
-                if age >= self.stale_days and not self.is_pr_notified(pr_id):
-                    pr = PullRequest(
-                        id=pr_id,
-                        creator=pr_data["user"]["login"],
-                        url=pr_data["html_url"],
-                        created_at=created_at,
-                        age=age,
-                    )
+                # Create PR object
+                pr = PullRequest(
+                    id=pr_id,
+                    creator=pr_data["user"]["login"],
+                    url=pr_data["html_url"],
+                    created_at=created_at,
+                    age=age,
+                )
 
-                    try:
-                        self.notify_pr(pr)
-                        self.send_slack_notification(pr)
-                        stale_prs.append(pr)
-                    except requests.RequestException as e:
-                        self.logger.error(f"Error processing PR #{pr_id}: {str(e)}")
+                self.logger.info(f"Processing PR #{pr_id} (age: {age} days)")
 
-            if not stale_prs:
-                self.logger.info("No stale PRs found")
+                try:
+                    self.notify_pr(pr)
+                    self.send_slack_notification(pr)
+                    processed_prs.append(pr)
+                except requests.RequestException as e:
+                    self.logger.error(f"Error processing PR #{pr_id}: {str(e)}")
+
+            if not processed_prs:
+                self.logger.info("No open PRs found to process")
             else:
-                self.logger.info(f"Processed {len(stale_prs)} stale PRs")
+                self.logger.info(f"Successfully processed {len(processed_prs)} PRs")
 
         except requests.RequestException as e:
             self.logger.error(f"Error fetching PRs: {str(e)}")
