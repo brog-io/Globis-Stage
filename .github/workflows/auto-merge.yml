@@ -4,6 +4,8 @@ on:
   pull_request:
   pull_request_target:
     types: [labeled, unlabeled]
+  pull_request_review:
+    types: [submitted]
 
 jobs:
   auto-merge:
@@ -27,5 +29,5 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-        run: python .github/scripts/auto-merge.py
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.review.pull_request.number }}
+        run: python auto_merge.py
