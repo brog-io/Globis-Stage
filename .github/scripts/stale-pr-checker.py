@@ -21,7 +21,7 @@ class GitHubPRMonitor:
     def __init__(self):
         self.github_token = os.getenv("GITHUB_TOKEN")
         self.repo = os.getenv("REPO")
-        self.stale_days = int(os.getenv("STALE_DAYS", "3"))
+        self.stale_days = int(os.getenv("STALE_DAYS", "2"))
         self.slack_webhook_url = os.getenv("SLACK_WEBHOOK_URL")
         self.event_name = os.getenv("GITHUB_EVENT_NAME", "")
         self.event_path = os.getenv("GITHUB_EVENT_PATH", "")
@@ -58,7 +58,7 @@ class GitHubPRMonitor:
             f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/comments"
         )
         comment = {
-            "body": f"@{pr.creator} Testing PR notification system. This is a test message."
+            "body": f"@{pr.creator} This PR has been open for more than {self.stale_days} days. Please update or close it."
         }
         response = requests.post(comment_url, headers=self.headers, json=comment)
         response.raise_for_status()
@@ -66,7 +66,7 @@ class GitHubPRMonitor:
         # Add label
         labels_url = f"https://api.github.com/repos/{self.repo}/issues/{pr.id}/labels"
         response = requests.post(
-            labels_url, headers=self.headers, json={"labels": ["Notified"]}
+            labels_url, headers=self.headers, json={"labels": ["stale"]}
         )
         response.raise_for_status()
 
@@ -81,13 +81,13 @@ class GitHubPRMonitor:
             return
 
         slack_payload = {
-            "text": f"🧪 Test Notification: <{pr.url}|#{pr.id}> by @{pr.creator}",
+            "text": f"🚨 Stale PR Alert: <{pr.url}|#{pr.id}> by @{pr.creator}",
             "blocks": [
                 {
                     "type": "section",
                     "text": {
                         "type": "mrkdwn",
-                        "text": f"*🧪 Test PR Notification*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days",
+                        "text": f"*🚨 Stale PR Alert*\n*PR:* <{pr.url}|#{pr.id}>\n*Creator:* @{pr.creator}\n*Age:* {pr.age} days\n*Status:* Needs attention",
                     },
                 }
             ],
@@ -98,10 +98,11 @@ class GitHubPRMonitor:
         self.logger.info(f"Slack notification sent for PR #{pr.id}")
 
     def process_pull_requests(self) -> None:
-        """Process all PRs in test mode."""
+        """Process PRs that are older than the stale threshold."""
         try:
-            self.logger.info(f"Starting PR notification test for {self.repo}")
+            self.logger.info(f"Starting stale PR check for {self.repo}")
             self.logger.info(f"Event type: {self.event_name}")
+            self.logger.info(f"Stale threshold: {self.stale_days} days")
 
             pull_requests = self.get_pull_requests()
             now = datetime.now(timezone.utc)
@@ -114,7 +115,12 @@ class GitHubPRMonitor:
                 )
                 age = (now - created_at).days
 
-                # Create PR object
+                # Skip PRs that aren't old enough
+                if age <= self.stale_days:
+                    self.logger.info(f"Skipping PR #{pr_id} (age: {age} days)")
+                    continue
+
+                # Create PR object for stale PRs
                 pr = PullRequest(
                     id=pr_id,
                     creator=pr_data["user"]["login"],
@@ -123,7 +129,7 @@ class GitHubPRMonitor:
                     age=age,
                 )
 
-                self.logger.info(f"Processing PR #{pr_id} (age: {age} days)")
+                self.logger.info(f"Processing stale PR #{pr_id} (age: {age} days)")
 
                 try:
                     self.notify_pr(pr)
@@ -133,9 +139,11 @@ class GitHubPRMonitor:
                     self.logger.error(f"Error processing PR #{pr_id}: {str(e)}")
 
             if not processed_prs:
-                self.logger.info("No open PRs found to process")
+                self.logger.info("No stale PRs found")
             else:
-                self.logger.info(f"Successfully processed {len(processed_prs)} PRs")
+                self.logger.info(
+                    f"Successfully processed {len(processed_prs)} stale PRs"
+                )
 
         except requests.RequestException as e:
             self.logger.error(f"Error fetching PRs: {str(e)}")
