@@ -30,6 +30,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
-          STALE_DAYS: 2
+          STALE_DAYS: 1
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: python .github/scripts/stale-pr-checker.py
