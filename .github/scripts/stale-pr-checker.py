@@ -116,7 +116,7 @@ class GitHubPRMonitor:
                 age = (now - created_at).days
 
                 # Skip PRs that aren't old enough
-                if age <= self.stale_days:
+                if age >= self.stale_days:
                     self.logger.info(f"Skipping PR #{pr_id} (age: {age} days)")
                     continue
 
