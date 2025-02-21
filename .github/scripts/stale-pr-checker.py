@@ -5,7 +5,7 @@ from datetime import datetime, timezone
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 REPO = os.getenv("REPO")
-STALE_DAYS = int(os.getenv("STALE_DAYS", 3))
+STALE_DAYS = int(os.getenv("STALE_DAYS", 1))
 SLACK_WEBHOOK_URL = os.getenv("SLACK_WEBHOOK_URL")
 
 headers = {
