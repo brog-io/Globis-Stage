@@ -9,9 +9,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Fetch a random meme
+      - name: Fetch a random programmer meme
         run: |
-          MEME_URL=$(curl -s https://meme-api.com/gimme | jq -r .url)
+          MEME_URL=$(curl -s https://meme-api.com/gimme/programmerhumor | jq -r .url)
           echo "MEME_URL=$MEME_URL" >> $GITHUB_ENV
 
       - name: Post meme as PR comment
@@ -25,7 +25,5 @@ jobs:
               owner,
               repo,
               issue_number: number,
-              body: `![Here's a meme for you](${memeUrl})`
+              body: `![Here's a programmer meme for you](${memeUrl})`
             });
-
-# Now it grabs a fresh meme from meme-api.com every time! Want me to add error handling or customize it further? Let me know!
