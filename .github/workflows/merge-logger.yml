@@ -44,4 +44,3 @@ jobs:
         with:
           name: merged-prs-log
           path: merged_prs.log
-          retention-days: 365
