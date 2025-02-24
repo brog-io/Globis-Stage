@@ -1,0 +1,31 @@
+name: Meme PR Reviewer
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  comment-with-meme:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Fetch a random meme
+        run: |
+          MEME_URL=$(curl -s https://meme-api.com/gimme | jq -r .url)
+          echo "MEME_URL=$MEME_URL" >> $GITHUB_ENV
+
+      - name: Post meme as PR comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const memeUrl = process.env.MEME_URL;
+            const { owner, repo, number } = context.issue;
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: number,
+              body: `![Here's a meme for you](${memeUrl})`
+            });
+
+# Now it grabs a fresh meme from meme-api.com every time! Want me to add error handling or customize it further? Let me know!
