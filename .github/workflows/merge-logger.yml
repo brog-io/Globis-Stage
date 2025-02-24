@@ -1,0 +1,47 @@
+name: Log Merged PRs
+
+on:
+  workflow_dispatch:
+    inputs:
+      start-date:
+        description: "Start date for PR logs (format: YYYY-MM-DD)"
+        required: false
+        default: "yesterday"
+      end-date:
+        description: "End date for PR logs (format: YYYY-MM-DD)"
+        required: false
+        default: "today"
+  schedule:
+    - cron: "0 0 * * *"
+
+jobs:
+  log-merged-prs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Get merged PRs with Python
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          START_DATE: ${{ github.event.inputs.start-date }}
+          END_DATE: ${{ github.event.inputs.end-date }}
+        run: |
+          python .github/scripts/merged-prs.py $START_DATE $END_DATE
+
+      - name: Upload PR log as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: merged-prs-log
+          path: merged_prs.log
+          retention-days: 365
