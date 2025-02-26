@@ -11,6 +11,9 @@ on:
         description: "Feature branch to rebase"
         required: true
 
+permissions:
+  contents: write
+
 jobs:
   rebase:
     name: Rebase Branches
