@@ -1,0 +1,42 @@
+name: Manual Rebase
+
+on:
+  workflow_dispatch:
+    inputs:
+      base-branch:
+        description: "Base branch to rebase onto"
+        required: true
+        default: "main"
+      feature-branch:
+        description: "Feature branch to rebase"
+        required: true
+
+jobs:
+  rebase:
+    name: Rebase Branches
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout the latest code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all branches
+        run: git fetch --all
+
+      - name: Checkout Feature Branch
+        run: git checkout ${{ github.event.inputs.feature-branch }}
+
+      - name: Rebase onto Base Branch
+        run: git rebase origin/${{ github.event.inputs.base-branch }}
+
+      - name: Push Rebased Branch
+        run: |
+          git push origin ${{ github.event.inputs.feature-branch }} --force
