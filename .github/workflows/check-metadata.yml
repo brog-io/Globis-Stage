@@ -1,23 +1,21 @@
-name: Notify Stale PRs
+name: Notify Slack on Database Label
 
 on:
-  schedule:
-    - cron: "0 9 * * 1-5"
+  pull_request:
 
 permissions:
-  pull-requests: write
-  issues: write
   contents: read
+  pull-requests: read
 
 jobs:
-  notify:
+  notify-slack:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Set up Python
+      - name: Setup Python
         uses: actions/setup-python@v4
         with:
           python-version: "3.x"
@@ -30,15 +28,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      - name: Install dependencies
+      - name: Install Dependencies
         run: |
           python -m pip install --upgrade pip
           pip install -r .github/requirements.txt
 
-      - name: Run stale PR checker
+      - name: Run Slack Notification Script
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          REPO: ${{ github.repository }}
-          STALE_DAYS: 3
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        run: python .github/scripts/stale-pr-checker.py
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_USER: ${{ github.event.pull_request.user.login }}
+          REPOSITORY: ${{ github.repository }}
+        run: python .github/scripts/check-metadata.py

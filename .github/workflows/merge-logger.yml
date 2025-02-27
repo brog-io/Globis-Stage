@@ -17,6 +17,7 @@ on:
 jobs:
   log-merged-prs:
     runs-on: ubuntu-latest
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -26,9 +27,18 @@ jobs:
         with:
           python-version: "3.x"
 
+      - name: Cache Python Packages
+        uses: actions/cache@v3
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('.github/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
       - name: Install dependencies
         run: |
-          pip install requests
+          python -m pip install --upgrade pip
+          pip install -r .github/requirements.txt
 
       - name: Get merged PRs with Python
         env:
@@ -36,8 +46,7 @@ jobs:
           REPO: ${{ github.repository }}
           START_DATE: ${{ github.event.inputs.start-date }}
           END_DATE: ${{ github.event.inputs.end-date }}
-        run: |
-          python .github/scripts/merged-prs.py $START_DATE $END_DATE
+        run: python .github/scripts/merged-prs.py $START_DATE $END_DATE
 
       - name: Upload PR log as artifact
         uses: actions/upload-artifact@v4
